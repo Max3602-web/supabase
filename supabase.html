@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Supabase Users</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body {
+      font-family: Arial;
+      max-width: 500px;
+      margin: 50px auto;
+    }
+    input, button {
+      display: block;
+      margin: 10px 0;
+      padding: 10px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .log {
+      margin-top: 20px;
+      background: #f3f3f3;
+      padding: 10px;
+      border-radius: 4px;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .error {
+      color: red;
+    }
+    .success {
+      color: green;
+    }
+  </style>
+</head>
+<body>
+
+<h2>Добавить пользователя</h2>
+
+<input id="email" type="email" placeholder="Email">
+<input id="password" type="password" placeholder="Пароль">
+<button onclick="handleAddUser()">Добавить</button>
+
+<div class="log" id="log"></div>
+
+<script>
+const SUPABASE_URL = 'https://isvebbzutaglbitxpmvs.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlzdmViYnp1dGFnbGJpdHhwbXZzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyMDUxNjMsImV4cCI6MjA5MTc4MTE2M30.3X7fbu_SY-9G1MZBJS771ZQIbUHNb6jyEDu3V_h1FOY';
+
+// создаем клиент
+const supabaseC = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// функция добавления
+async function addUser(userData) {
+    const { data, error } = await supabaseC
+        .from('users')
+        .insert([userData])
+        .select();
+
+    if (error) {
+        console.error('❌ Ошибка:', error);
+        log('Ошибка: ' + error.message, 'error');
+        return null;
+    }
+
+    console.log('✅ Пользователь добавлен:', data);
+    log('Добавлен: ' + JSON.stringify(data), 'success');
+    return data;
+}
+
+// обработчик кнопки
+async function handleAddUser() {
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+
+    if (!email || !password) {
+        log('Введите email и пароль', 'error');
+        return;
+    }
+
+    const newUser = {
+        username: email,
+        password: password
+    };
+
+    await addUser(newUser);
+}
+
+// лог в UI
+function log(text, type = 'normal') {
+    const logDiv = document.getElementById('log');
+    logDiv.innerHTML = text;
+    logDiv.className = 'log ' + type;
+}
+
+// Проверка структуры таблицы (для отладки)
+async function checkTableStructure() {
+    try {
+        const { data, error } = await supabaseC
+            .from('users')
+            .select('*')
+            .limit(1);
+        
+        if (error) {
+            console.log('Ошибка при проверке:', error);
+        } else if (data && data.length > 0) {
+            console.log('Структура таблицы users:', Object.keys(data[0]));
+        }
+    } catch (e) {
+        console.log('Не удалось проверить структуру:', e);
+    }
+}
+
+// Проверяем структуру при загрузке
+checkTableStructure();
+
+</script>
+
+</body>
+</html>
