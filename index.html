@@ -2,6 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Supabase - Регистрация и аватар</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
@@ -166,7 +167,7 @@
   
   <div class="avatar-section">
     <div id="avatarContainer">
-      <!-- Здесь будет аватар или плейсхолдер -->
+      <div class="avatar-placeholder">👤</div>
     </div>
     
     <label class="file-input-label">
@@ -184,16 +185,17 @@
 </div>
 
 <script>
+// Используем const вместо var и избегаем глобального конфликта
 const SUPABASE_URL = 'https://isvebbzutaglbitxpmvs.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlzdmViYnp1dGFnbGJpdHhwbXZzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyMDUxNjMsImV4cCI6MjA5MTc4MTE2M30.3X7fbu_SY-9G1MZBJS771ZQIbUHNb6jyEDu3V_h1FOY';
 
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Создаем клиент с уникальным именем
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-let isLoginMode = false; // false = регистрация, true = вход
+let isLoginMode = false;
 
 // ========== ФУНКЦИИ АВТОРИЗАЦИИ ==========
-
-async function handleSubmit() {
+window.handleSubmit = async function() {
   const email = document.getElementById('email').value;
   const password = document.getElementById('password').value;
   
@@ -212,47 +214,41 @@ async function handleSubmit() {
   btn.textContent = 'Загрузка...';
   
   if (isLoginMode) {
-    // Вход
-    const { data, error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabaseClient.auth.signInWithPassword({
       email: email,
       password: password
     });
     
     btn.disabled = false;
-    btn.textContent = isLoginMode ? 'Войти' : 'Зарегистрироваться';
+    btn.textContent = 'Войти';
     
     if (error) {
       showLog(`Ошибка входа: ${error.message}`, 'error', 'authLog');
     } else {
       showLog('Вход выполнен успешно!', 'success', 'authLog');
-      console.log('Пользователь:', data.user);
       checkUser();
     }
   } else {
-    // Регистрация
-    const { data, error } = await supabase.auth.signUp({
+    const { data, error } = await supabaseClient.auth.signUp({
       email: email,
       password: password
     });
     
     btn.disabled = false;
-    btn.textContent = isLoginMode ? 'Войти' : 'Зарегистрироваться';
+    btn.textContent = 'Зарегистрироваться';
     
     if (error) {
       showLog(`Ошибка регистрации: ${error.message}`, 'error', 'authLog');
     } else {
-      showLog('Регистрация успешна! Теперь войдите.', 'success', 'authLog');
-      // Автоматически переключаем на вход
-      if (!isLoginMode) {
-        setTimeout(() => {
-          toggleMode();
-        }, 1500);
-      }
+      showLog('Регистрация успешна! Проверьте почту для подтверждения.', 'success', 'authLog');
+      setTimeout(() => {
+        toggleMode();
+      }, 2000);
     }
   }
 }
 
-function toggleMode() {
+window.toggleMode = function() {
   isLoginMode = !isLoginMode;
   const title = document.getElementById('formTitle');
   const btn = document.getElementById('submitBtn');
@@ -271,68 +267,57 @@ function toggleMode() {
   showLog('', '', 'authLog');
 }
 
-// ========== ЗАГРУЗКА АВАТАРА (С ТВОИМ УСЛОВИЕМ 50МБ) ==========
+// ========== ЗАГРУЗКА АВАТАРА ==========
+const MAX_FILE_SIZE = 50 * 1024 * 1024;
 
-const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 МБ
-
-async function uploadAvatar(file) {
+window.uploadAvatar = async function(file) {
   if (!file) return;
   
-  // 1. Проверка размера (твое условие!)
   if (file.size > MAX_FILE_SIZE) {
     showLog(`❌ Файл ${file.name} весит больше 50 МБ!`, 'error', 'mainLog');
     return;
   }
   
-  // 2. Проверка типа
   if (!file.type.startsWith('image/')) {
     showLog('❌ Пожалуйста, выберите изображение', 'error', 'mainLog');
     return;
   }
   
-  // 3. Получаем текущего пользователя
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await supabaseClient.auth.getUser();
   if (!user) {
     showLog('❌ Пользователь не авторизован', 'error', 'mainLog');
     return;
   }
   
   showLog('⏳ Загрузка аватара...', 'info', 'mainLog');
-  
-  // Показываем прогресс-бар
   const progressDiv = document.getElementById('uploadProgress');
   progressDiv.style.display = 'block';
   
   try {
-    // 4. Создаем уникальное имя файла
     const fileExt = file.name.split('.').pop();
     const fileName = `avatar_${user.id}_${Date.now()}.${fileExt}`;
     const filePath = `avatars/${fileName}`;
     
-    // 5. Загружаем в Supabase Storage
-    const { data, error: uploadError } = await supabase.storage
-      .from('avatars') // Название твоего бакета (нужно создать!)
+    const { error: uploadError } = await supabaseClient.storage
+      .from('avatars')
       .upload(filePath, file, {
         cacheControl: '3600',
-        upsert: true // Если файл с таким именем есть - перезапишем
+        upsert: true
       });
     
     if (uploadError) throw uploadError;
     
-    // 6. Получаем публичную ссылку
-    const { data: { publicUrl } } = supabase.storage
+    const { data: { publicUrl } } = supabaseClient.storage
       .from('avatars')
       .getPublicUrl(filePath);
     
-    // 7. Сохраняем ссылку на аватар в таблице пользователей
-    const { error: updateError } = await supabase
+    const { error: updateError } = await supabaseClient
       .from('users')
       .update({ avatar_url: publicUrl })
       .eq('id', user.id);
     
     if (updateError) throw updateError;
     
-    // 8. Обновляем отображение аватара
     displayAvatar(publicUrl);
     showLog('✅ Аватар успешно загружен!', 'success', 'mainLog');
     
@@ -341,12 +326,10 @@ async function uploadAvatar(file) {
     showLog(`❌ Ошибка: ${error.message}`, 'error', 'mainLog');
   } finally {
     progressDiv.style.display = 'none';
-    // Очищаем input
     document.getElementById('avatarInput').value = '';
   }
 }
 
-// Отображение аватара
 function displayAvatar(avatarUrl) {
   const container = document.getElementById('avatarContainer');
   if (avatarUrl && avatarUrl !== 'null') {
@@ -356,18 +339,16 @@ function displayAvatar(avatarUrl) {
   }
 }
 
-// ========== ЗАГРУЗКА ДАННЫХ ПОЛЬЗОВАТЕЛЯ ==========
-
 async function loadUserData(userId) {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from('users')
       .select('avatar_url, username')
       .eq('id', userId)
-      .single();
+      .maybeSingle();
     
     if (error) {
-      console.log('Таблица users еще не готова или нет записи');
+      console.log('Ошибка загрузки:', error);
       return null;
     }
     
@@ -382,36 +363,29 @@ async function loadUserData(userId) {
   }
 }
 
-// ========== ПРОВЕРКА СОСТОЯНИЯ АВТОРИЗАЦИИ ==========
-
 async function checkUser() {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await supabaseClient.auth.getUser();
   
   if (user) {
-    // Пользователь авторизован - показываем главную страницу
     document.getElementById('authForm').classList.add('hidden');
     document.getElementById('mainPage').classList.remove('hidden');
     document.getElementById('userEmail').textContent = user.email;
     
-    // Загружаем аватар
     await loadUserData(user.id);
     
-    // Если в таблице users нет записи - создаем
-    const { data: existing } = await supabase
+    const { data: existing } = await supabaseClient
       .from('users')
       .select('id')
       .eq('id', user.id)
-      .single();
+      .maybeSingle();
     
     if (!existing) {
-      // Создаем запись пользователя
-      await supabase
+      await supabaseClient
         .from('users')
         .insert([{ id: user.id, username: user.email }]);
     }
     
   } else {
-    // Не авторизован - показываем форму входа
     document.getElementById('authForm').classList.remove('hidden');
     document.getElementById('mainPage').classList.add('hidden');
     document.getElementById('email').value = '';
@@ -419,13 +393,12 @@ async function checkUser() {
   }
 }
 
-async function logout() {
-  await supabase.auth.signOut();
+window.logout = async function() {
+  await supabaseClient.auth.signOut();
   checkUser();
   showLog('Вы вышли из системы', 'success', 'authLog');
 }
 
-// Вспомогательная функция для логов
 function showLog(message, type, elementId) {
   const logDiv = document.getElementById(elementId);
   if (!message) {
@@ -447,14 +420,13 @@ function showLog(message, type, elementId) {
 }
 
 // Слушаем изменения состояния авторизации
-supabase.auth.onAuthStateChange((event, session) => {
+supabaseClient.auth.onAuthStateChange((event, session) => {
   console.log('Auth event:', event);
   checkUser();
 });
 
 // При загрузке страницы проверяем пользователя
 checkUser();
-
 </script>
 
 </body>
